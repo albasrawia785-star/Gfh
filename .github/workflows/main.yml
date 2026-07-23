@@ -43,12 +43,12 @@ jobs:
           gradle wrapper
           chmod +x gradlew
           
-          echo "🛠️ 2. إنشاء مفتاح Release ثابت للتوقيع..."
-          keytool -genkey -v -keystore release.keystore \
-            -alias app_alias \
+          echo "🛠️ 2. إنشاء مفتاح my-upload-key.jks المطلوب بملف Gradle..."
+          keytool -genkey -v -keystore my-upload-key.jks \
+            -alias key0 \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass "AppStorePass123" \
-            -keypass "AppKeyPass123" \
+            -storepass "android" \
+            -keypass "android" \
             -dname "CN=Online App, OU=Dev, O=App, L=Basra, C=IQ"
 
           echo "🛠️ 3. إنشاء ملف google-services.json متوافق مع اسم الحزمة الحقيقي..."
@@ -76,20 +76,8 @@ jobs:
           }
           EOF
 
-          echo "🚀 4. تنفيذ مهمة المعالجة وبناء نسخة الـ Release..."
+          echo "🚀 4. تنفيذ بناء نسخة الـ Release الموقعة..."
           ./gradlew assembleRelease --no-daemon
-
-          echo "🛠️ 5. محاذاة وتوقيع الـ APK النهائي..."
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
-          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
-
-          $BUILD_TOOLS_DIR/zipalign -v -p 4 "$UNSIGNED_APK" app/build/outputs/apk/release/app-release-aligned.apk
-          $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore \
-            --ks-key-alias app_alias \
-            --ks-pass pass:AppStorePass123 \
-            --key-pass pass:AppKeyPass123 \
-            --out app/build/outputs/apk/release/app-release-signed.apk \
-            app/build/outputs/apk/release/app-release-aligned.apk
 
           echo "✅ تم البناء والتوقيع بنجاح!"
 
@@ -98,4 +86,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DebtTracker-Online-Release-APK
-          path: project_dir/**/build/outputs/apk/release/app-release-signed.apk
+          path: project_dir/**/build/outputs/apk/release/*.apk
