@@ -51,7 +51,22 @@ jobs:
             -keypass "android" \
             -dname "CN=Online App, OU=Dev, O=App, L=Basra, C=IQ"
 
-          echo "🛠️ 3. إنشاء ملف google-services.json متوافق مع اسم الحزمة الحقيقي..."
+          echo "🛠️ 3. كتابة خواص التوقيع في ملف gradle.properties..."
+          echo "MYAPP_RELEASE_STORE_FILE=my-upload-key.jks" >> gradle.properties
+          echo "MYAPP_RELEASE_STORE_PASSWORD=android" >> gradle.properties
+          echo "MYAPP_RELEASE_KEY_ALIAS=key0" >> gradle.properties
+          echo "MYAPP_RELEASE_KEY_PASSWORD=android" >> gradle.properties
+          
+          echo "RELEASE_STORE_FILE=my-upload-key.jks" >> gradle.properties
+          echo "RELEASE_STORE_PASSWORD=android" >> gradle.properties
+          echo "RELEASE_KEY_ALIAS=key0" >> gradle.properties
+          echo "RELEASE_KEY_PASSWORD=android" >> gradle.properties
+          echo "storePassword=android" >> gradle.properties
+          echo "keyPassword=android" >> gradle.properties
+          echo "keyAlias=key0" >> gradle.properties
+          echo "storeFile=my-upload-key.jks" >> gradle.properties
+
+          echo "🛠️ 4. إنشاء ملف google-services.json متوافق مع اسم الحزمة الحقيقي..."
           cat <<EOF > app/google-services.json
           {
             "project_info": {
@@ -76,8 +91,13 @@ jobs:
           }
           EOF
 
-          echo "🚀 4. تنفيذ بناء نسخة الـ Release الموقعة..."
-          ./gradlew assembleRelease --no-daemon
+          echo "🚀 5. تنفيذ بناء نسخة الـ Release وحقن بيانات التوقيع..."
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks \
+            -Pandroid.injected.signing.store.password=android \
+            -Pandroid.injected.signing.key.alias=key0 \
+            -Pandroid.injected.signing.key.password=android \
+            --no-daemon
 
           echo "✅ تم البناء والتوقيع بنجاح!"
 
