@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Online Android APK
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
       - name: Unzip project files
         run: unzip *.zip -d project_dir
 
-      # 4. بناء وتوقيع الـ Release APK مع تمرير الخواص المطلوبة
+      # 4. بناء وتوقيع ملف الـ Release APK للتطبيق الأونلاين
       - name: Build and Sign Release APK
         env:
           _JAVA_OPTIONS: "-Djava.awt.headless=true"
@@ -43,46 +43,59 @@ jobs:
           gradle wrapper
           chmod +x gradlew
           
-          echo "🛠️ 2. إنشاء ملف التوقيع my-upload-key.jks..."
-          keytool -genkey -v -keystore my-upload-key.jks \
-            -alias key0 \
+          echo "🛠️ 2. إنشاء مفتاح Release ثابت للتوقيع..."
+          keytool -genkey -v -keystore release.keystore \
+            -alias app_alias \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass "android" \
-            -keypass "android" \
-            -dname "CN=POS App, OU=POS, O=POS, L=Basra, C=IQ"
+            -storepass "AppStorePass123" \
+            -keypass "AppKeyPass123" \
+            -dname "CN=Online App, OU=Dev, O=App, L=Basra, C=IQ"
 
-          echo "🛠️ 3. كتابة خواص التوقيع في ملف gradle.properties لمنع النقص..."
-          echo "MYAPP_RELEASE_STORE_FILE=my-upload-key.jks" >> gradle.properties
-          echo "MYAPP_RELEASE_STORE_PASSWORD=android" >> gradle.properties
-          echo "MYAPP_RELEASE_KEY_ALIAS=key0" >> gradle.properties
-          echo "MYAPP_RELEASE_KEY_PASSWORD=android" >> gradle.properties
-          
-          # استبدال إضافي في حالة استخدام مسميات متغيرة أخرى داخل build.gradle
-          echo "RELEASE_STORE_FILE=my-upload-key.jks" >> gradle.properties
-          echo "RELEASE_STORE_PASSWORD=android" >> gradle.properties
-          echo "RELEASE_KEY_ALIAS=key0" >> gradle.properties
-          echo "RELEASE_KEY_PASSWORD=android" >> gradle.properties
-          echo "storePassword=android" >> gradle.properties
-          echo "keyPassword=android" >> gradle.properties
-          echo "keyAlias=key0" >> gradle.properties
-          echo "storeFile=my-upload-key.jks" >> gradle.properties
+          echo "🛠️ 3. إنشاء ملف google-services.json متوافق مع اسم الحزمة الحقيقي..."
+          cat <<EOF > app/google-services.json
+          {
+            "project_info": {
+              "project_number": "123456789",
+              "project_id": "debt-tracker-online"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789:android:123456",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.debttracker.iqdb"
+                  }
+                },
+                "api_key": [
+                  {
+                    "current_key": "mock_api_key_here"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
 
-          echo "🛠️ 4. التحقق من وجود ملف الخدمات لجوجل (Google Services)..."
-          if [ ! -f "app/google-services.json" ]; then
-            echo '{"project_info": {"project_number": "123456789", "project_id": "casher-mock-id"}, "client": [{"client_info": {"mobilesdk_app_id": "1:123456789:android:123456", "android_client_info": {"package_name": "com.aistudio.restaurantpos.vmdjqk"}}, "api_key": [{"current_key": "mock_api_key_here"}]}]}' > app/google-services.json
-          fi
+          echo "🚀 4. تنفيذ مهمة المعالجة وبناء نسخة الـ Release..."
+          ./gradlew assembleRelease --no-daemon
 
-          echo "🚀 5. بناء نسخة الـ Release بتمرير خواص التوقيع المباشرة..."
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks \
-            -Pandroid.injected.signing.store.password=android \
-            -Pandroid.injected.signing.key.alias=key0 \
-            -Pandroid.injected.signing.key.password=android \
-            --no-daemon
+          echo "🛠️ 5. محاذاة وتوقيع الـ APK النهائي..."
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
 
-      # 5. رفع ملف الـ APK الناتج ليكون جاهزاً للتحميل
+          $BUILD_TOOLS_DIR/zipalign -v -p 4 "$UNSIGNED_APK" app/build/outputs/apk/release/app-release-aligned.apk
+          $BUILD_TOOLS_DIR/apksigner sign --ks release.keystore \
+            --ks-key-alias app_alias \
+            --ks-pass pass:AppStorePass123 \
+            --key-pass pass:AppKeyPass123 \
+            --out app/build/outputs/apk/release/app-release-signed.apk \
+            app/build/outputs/apk/release/app-release-aligned.apk
+
+          echo "✅ تم البناء والتوقيع بنجاح!"
+
+      # 5. رفع ملف الـ APK النهائي الجاهز للتنزيل والتثبيت
       - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Cashier-POS-Release
-          path: project_dir/**/build/outputs/apk/release/*.apk
+          name: DebtTracker-Online-Release-APK
+          path: project_dir/**/build/outputs/apk/release/app-release-signed.apk
